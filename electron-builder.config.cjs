@@ -4,6 +4,17 @@ const electronDist = require("./scripts/electron-builder-electron-dist.cjs");
 const electronPackage = require("electron/package.json");
 
 const PRODUCT_NAME = "LeRobot Dataset Visualizer";
+// Re-sign the final bundle even without a Developer ID certificate. Electron's
+// original linker signature does not seal the resources added during packaging.
+const macIdentity =
+  process.env.CSC_NAME?.trim() ||
+  (process.env.CSC_LINK?.trim() ? undefined : "-");
+const adHocMacSigning = macIdentity === "-";
+const macEntitlements = path.join(
+  __dirname,
+  "electron",
+  "entitlements.mac.plist",
+);
 
 function resourcesDirectory(appOutDir, platform) {
   return platform === "darwin"
@@ -41,5 +52,14 @@ module.exports = {
     syncDesktopName: true,
   },
   win: { target: ["nsis"] },
-  mac: { target: ["dmg"], category: "public.app-category.education" },
+  mac: {
+    target: ["dmg"],
+    category: "public.app-category.education",
+    identity: macIdentity,
+    forceCodeSigning: true,
+    hardenedRuntime: true,
+    entitlements: macEntitlements,
+    entitlementsInherit: macEntitlements,
+    notarize: !adHocMacSigning,
+  },
 };

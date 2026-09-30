@@ -58,7 +58,32 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Build desktop packages
+        if: runner.os != 'macOS'
         run: bun run desktop:dist:ci
+      - name: Build macOS package
+        if: runner.os == 'macOS'
+        env:
+          # PR builds use ad-hoc signing only, without exposing Apple credentials.
+          CSC_FOR_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ github.event_name != 'pull_request' && secrets.MAC_CSC_LINK != '' }}
+          CSC_LINK: ${{ github.event_name != 'pull_request' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
+        shell: bash
+        run: |
+          if [[ -n "$CSC_LINK" ]]; then
+            : "${APPLE_ID:?Set APPLE_ID for notarized macOS builds}"
+            : "${APPLE_APP_SPECIFIC_PASSWORD:?Set APPLE_APP_SPECIFIC_PASSWORD for notarized macOS builds}"
+            : "${APPLE_TEAM_ID:?Set APPLE_TEAM_ID for notarized macOS builds}"
+          fi
+          bun run desktop:dist:ci
+      - name: Verify and smoke test macOS DMG
+        if: runner.os == 'macOS'
+        env:
+          MACOS_REQUIRE_NOTARIZATION: ${{ github.event_name != 'pull_request' && secrets.MAC_CSC_LINK != '' }}
+        run: bash scripts/smoke-test-macos-dmg.sh dist-electron/*.dmg
       - name: Install Linux smoke-test dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install --yes xvfb
@@ -85,6 +110,11 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body: |
+            ### macOS first launch
+            Builds without an Apple Developer ID certificate use ad-hoc signing and are not notarized.
+            If macOS blocks an app you trust, try opening it once, then go to **System Settings → Privacy & Security → Open Anyway** and confirm **Open**.
+            See [Apple's instructions](https://support.apple.com/en-us/102445). Managed Macs may restrict this option.
           files: |
             release-artifacts/**/*.AppImage
             release-artifacts/**/*.deb

@@ -141,7 +141,44 @@ bun run desktop:dist
 GitHub Actions builds `.AppImage` and `.deb` packages on Linux, `.exe` on
 Windows, and `.dmg` on macOS. Pushing a tag such as `v0.1.0` publishes all four
 artifacts to a GitHub Release. Builds are unsigned unless signing credentials
-are configured in the repository.
+are configured in the repository, except macOS builds, which always sign the
+complete application bundle (ad-hoc when no Developer ID certificate is supplied).
+
+#### macOS signing and verification
+
+The macOS job mounts the generated DMG, copies its application, verifies all code
+signatures, and smoke-tests the embedded server. Run the same check locally after
+`bun run desktop:dist`:
+
+```bash
+bash scripts/smoke-test-macos-dmg.sh dist-electron/*.dmg
+```
+
+Ad-hoc signing repairs the bundle's integrity but does **not** establish a trusted
+developer identity or provide Apple notarization. Downloaded ad-hoc builds may
+still be blocked by Gatekeeper. For a build you trust, try opening it once, then
+use **System Settings → Privacy & Security → Open Anyway**, as described in
+[Apple's instructions](https://support.apple.com/en-us/102445). Do not disable
+Gatekeeper system-wide. If an older build reports that it is damaged, replace it
+with a newly built package; the v0.1.0 macOS release skipped bundle signing.
+
+For Developer ID signing and notarization, configure these GitHub Actions secrets:
+
+| Secret                        | Value                                          |
+| ----------------------------- | ---------------------------------------------- |
+| `MAC_CSC_LINK`                | Base64-encoded Developer ID Application `.p12` |
+| `MAC_CSC_KEY_PASSWORD`        | Password used when exporting the `.p12`        |
+| `APPLE_ID`                    | Apple developer account email                  |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for that account         |
+| `APPLE_TEAM_ID`               | Apple Developer team ID                        |
+
+Non-PR macOS builds use these credentials to sign and notarize the app. When a
+certificate is configured, missing notarization credentials fail the build; the
+DMG check also requires a stapled notarization ticket and Gatekeeper acceptance.
+PR builds always use ad-hoc signing without these secrets. For local Developer ID
+builds, electron-builder accepts `CSC_LINK` / `CSC_KEY_PASSWORD` (or `CSC_NAME`
+for a certificate in your keychain) plus the same `APPLE_*` environment variables.
+See [electron-builder's signing documentation](https://www.electron.build/v26/docs/features/code-signing/code-signing-mac/).
 
 ### Environment Variables
 

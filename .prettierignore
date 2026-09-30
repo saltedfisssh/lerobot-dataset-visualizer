@@ -1,6 +1,7 @@
 # Build output
 .next/
 out/
+dist-electron/
 node_modules/
 
 # Backend (Python)
