@@ -77,6 +77,9 @@ jobs:
             : "${APPLE_ID:?Set APPLE_ID for notarized macOS builds}"
             : "${APPLE_APP_SPECIFIC_PASSWORD:?Set APPLE_APP_SPECIFIC_PASSWORD for notarized macOS builds}"
             : "${APPLE_TEAM_ID:?Set APPLE_TEAM_ID for notarized macOS builds}"
+          else
+            # electron-builder treats an empty CSC_LINK as a certificate path.
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
           fi
           bun run desktop:dist:ci
       - name: Verify and smoke test macOS DMG
